@@ -12,6 +12,7 @@ import (
 	"github.com/privacybydesign/gabi/big"
 	"github.com/privacybydesign/irmago"
 	"github.com/privacybydesign/irmago/internal/fs"
+	"github.com/privacybydesign/keyproof/common"
 )
 
 // This file contains most methods of the Client (c.f. session.go
@@ -53,7 +54,6 @@ type Client struct {
 	Preferences           Preferences
 	Configuration         *irma.Configuration
 	irmaConfigurationPath string
-	androidStoragePath    string
 	handler               ClientHandler
 }
 
@@ -120,7 +120,6 @@ type secretKey struct {
 func New(
 	storagePath string,
 	irmaConfigurationPath string,
-	androidStoragePath string,
 	handler ClientHandler,
 ) (*Client, error) {
 	var err error
@@ -136,7 +135,6 @@ func New(
 		keyshareServers:       make(map[irma.SchemeManagerIdentifier]*keyshareServer),
 		attributes:            make(map[irma.CredentialTypeIdentifier][]*irma.AttributeList),
 		irmaConfigurationPath: irmaConfigurationPath,
-		androidStoragePath:    androidStoragePath,
 		handler:               handler,
 	}
 
@@ -248,11 +246,9 @@ func (client *Client) addCredential(cred *credential, storeAttributes bool) (err
 }
 
 func generateSecretKey() (*secretKey, error) {
-	key, err := gabi.RandomBigInt(gabi.DefaultSystemParameters[1024].Lm)
-	if err != nil {
-		return nil, err
-	}
-	return &secretKey{Key: key}, nil
+	return &secretKey{
+		Key: common.RandomBigInt(new(big.Int).Lsh(big.NewInt(1), uint(gabi.DefaultSystemParameters[1024].Lm))),
+	}, nil
 }
 
 // Removal methods
@@ -673,12 +669,21 @@ func (client *Client) ProofBuilders(choice *irma.DisclosureChoice, request irma.
 	}
 
 	var builders gabi.ProofBuilderList
+	var builder gabi.ProofBuilder
 	for _, grp := range todisclose {
 		cred, err := client.credentialByID(grp.cred)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		builders = append(builders, cred.Credential.CreateDisclosureProofBuilder(grp.attrs))
+		nonrev, err := cred.PrepareNonrevocation(client.Configuration, request)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		builder, err = cred.CreateDisclosureProofBuilder(grp.attrs, nonrev)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		builders = append(builders, builder)
 	}
 
 	var timestamp *atum.Timestamp
@@ -717,7 +722,7 @@ func (client *Client) Proofs(choice *irma.DisclosureChoice, request irma.Session
 
 // generateIssuerProofNonce generates a nonce which the issuer must use in its gabi.ProofS.
 func generateIssuerProofNonce() (*big.Int, error) {
-	return gabi.RandomBigInt(gabi.DefaultSystemParameters[4096].Lstatzk)
+	return common.RandomBigInt(new(big.Int).Lsh(big.NewInt(1), uint(gabi.DefaultSystemParameters[4096].Lstatzk))), nil
 }
 
 // IssuanceProofBuilders constructs a list of proof builders in the issuance protocol
