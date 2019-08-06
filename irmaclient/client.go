@@ -407,7 +407,7 @@ func (client *Client) credential(id irma.CredentialTypeIdentifier, counter int) 
 		if attrs == nil { // We do not have the requested cred
 			return
 		}
-		sig, err := client.storage.LoadSignature(attrs)
+		sig, witness, err := client.storage.LoadSignature(attrs)
 		if err != nil {
 			return nil, err
 		}
@@ -423,9 +423,10 @@ func (client *Client) credential(id irma.CredentialTypeIdentifier, counter int) 
 			return nil, errors.New("unknown public key")
 		}
 		cred, err := newCredential(&gabi.Credential{
-			Attributes: append([]*big.Int{client.secretkey.Key}, attrs.Ints...),
-			Signature:  sig,
-			Pk:         pk,
+			Attributes:           append([]*big.Int{client.secretkey.Key}, attrs.Ints...),
+			Signature:            sig,
+			NonRevocationWitness: witness,
+			Pk:                   pk,
 		}, client.Configuration)
 		if err != nil {
 			return nil, err

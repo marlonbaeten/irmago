@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/privacybydesign/gabi"
+	"github.com/privacybydesign/gabi/revocation"
 	"github.com/privacybydesign/irmago"
 	"github.com/privacybydesign/irmago/internal/fs"
 	"go.etcd.io/bbolt"
@@ -96,8 +97,16 @@ func (s *storage) DeleteSignature(attrs *irma.AttributeList) error {
 	return os.Remove(s.path(s.signatureFilename(attrs)))
 }
 
+type clSignatureWitness struct {
+	*gabi.CLSignature
+	Witness *revocation.Witness
+}
+
 func (s *storage) StoreSignature(cred *credential) error {
-	return s.store(cred.Signature, s.signatureFilename(cred.AttributeList()))
+	return s.store(&clSignatureWitness{
+		CLSignature: cred.Signature,
+		Witness:     cred.NonRevocationWitness,
+	}, s.signatureFilename(cred.AttributeList()))
 }
 
 func (s *storage) StoreSecretKey(sk *secretKey) error {
@@ -159,16 +168,16 @@ func (s *storage) StoreUpdates(updates []update) (err error) {
 	return s.store(updates, updatesFile)
 }
 
-func (s *storage) LoadSignature(attrs *irma.AttributeList) (signature *gabi.CLSignature, err error) {
+func (s *storage) LoadSignature(attrs *irma.AttributeList) (*gabi.CLSignature, *revocation.Witness, error) {
 	sigpath := s.signatureFilename(attrs)
 	if err := fs.AssertPathExists(s.path(sigpath)); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	signature = new(gabi.CLSignature)
-	if err := s.load(signature, sigpath); err != nil {
-		return nil, err
+	sig := &clSignatureWitness{}
+	if err := s.load(sig, sigpath); err != nil {
+		return nil, nil, err
 	}
-	return signature, nil
+	return sig.CLSignature, sig.Witness, nil
 }
 
 // LoadSecretKey retrieves and returns the secret key from storage, or if no secret key
