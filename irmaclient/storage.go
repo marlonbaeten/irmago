@@ -63,6 +63,10 @@ func (s *storage) EnsureStorageExists() error {
 	return err
 }
 
+func (s *storage) Close() error {
+	return s.db.Close()
+}
+
 func (s *storage) load(dest interface{}, path string) (err error) {
 	exists, err := fs.PathExists(s.path(path))
 	if err != nil || !exists {
