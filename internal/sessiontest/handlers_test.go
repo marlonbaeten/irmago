@@ -70,6 +70,9 @@ type TestHandler struct {
 	result             string
 }
 
+func (th TestHandler) ClientReturnURLSet(clientReturnURL string) {
+	th.Failure(&irma.SessionError{Err: errors.New("ClientReturnURLSet")})
+}
 func (th TestHandler) KeyshareEnrollmentIncomplete(manager irma.SchemeManagerIdentifier) {
 	th.Failure(&irma.SessionError{Err: errors.New("KeyshareEnrollmentIncomplete")})
 }
